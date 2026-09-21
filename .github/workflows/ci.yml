@@ -33,7 +33,9 @@ jobs:
           EPITECH_SSH_KEY: ${{ secrets.EPITECH_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$EPITECH_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          key="$EPITECH_SSH_KEY"
+          key="${key//\\n/$'\n'}"
+          printf '%s\n' "$key" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
           ssh-keyscan github.com >> ~/.ssh/known_hosts
