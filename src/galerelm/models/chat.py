@@ -66,5 +66,10 @@ class Tools:
     def __init__(self, tool_type: ToolType, tool_function: ToolsFunction):
         self.tool_type: ToolType = tool_type
         self.tool_function: ToolsFunction = tool_function
-        
 
+class ToolsList(UserList[Tools]):
+    """Collection typée réservée aux objets Message."""
+
+    def format_all(self, separator: str = "\n---\n") -> str:
+        """Méthode uniquement disponible sur cette collection de messages."""
+        return ""
