@@ -10,6 +10,8 @@ Base = declarative_base()
 
 Role = Literal["system", "user", "assistant", "tool"]
 ToolType = Literal["function"]
+Format = Literal["json"]
+Think = Literal["high", "medium", "low", "max"]
 
 class ToolCallsFunction:
     """
@@ -56,6 +58,13 @@ class Message:
         self.images: list[str] = images
         self.tool_calls: list[ToolCalls] = tool_calls
 
+class MessageList(UserList[Message]):
+    """Collection typée réservée aux objets Message."""
+
+    def format_all(self, separator: str = "\n---\n") -> str:
+        """Méthode uniquement disponible sur cette collection de messages."""
+        return ""
+
 class ToolsFunction:
     def __init__(self, name: str, parameters: list[Any], description: str):
         self.name: str = name
@@ -73,3 +82,27 @@ class ToolsList(UserList[Tools]):
     def format_all(self, separator: str = "\n---\n") -> str:
         """Méthode uniquement disponible sur cette collection de messages."""
         return ""
+
+class Options:
+    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float, stop: str | list[str], num_ctx: int, num_predict: int):
+        self.seed: int = seed
+        self.temperature: float = temperature
+        self.top_k: int = top_k
+        self.top_p: float = top_p
+        self.min_p: float = min_p
+        self.stop: str | list[str] = stop
+        self.num_ctx: int = num_ctx
+        self.num_predict: int = num_predict
+
+class Chat:
+    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options, stream: bool, think: bool | Think, keep_alive: str | int, logprobs: bool, top_logprobs: integer):
+        self.model: str = model
+        self.messages: MessageList = messages
+        self.tools: ToolsList = tools
+        self.request_format: Format = request_format
+        self.options: Options = options
+        self.stream: bool = stream
+        self.think: bool | Think = think
+        self.keep_alive: str = keep_alive
+        self.logprobs: bool = logprobs
+        self.top_logprobs: int = top_logprobs
