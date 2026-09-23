@@ -1,9 +1,7 @@
-from typing import Literal, Optional, Any
+from typing import Literal, Optional, Any, Union
 from collections import UserList
 
-#Still unused, maybe will when data will be stored in a real DB
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Float, JSON
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -14,15 +12,14 @@ Format = Literal["json"]
 Think = Literal["high", "medium", "low", "max"]
 
 
-class ToolCallsFunction:
-    """
-    :param name:
-    :param description:
-    :param arguments:
-    """
-    name: str
-    description: str
-    arguments: dict
+class ToolCallsFunction(Base):
+    __tablename__ = "tool_calls_functions"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    tool_call_id: int = Column(Integer, ForeignKey("tool_calls.id"))
+
+    name: str = Column(String, nullable=False)
+    description: str = Column(Text, nullable=True)
+    arguments: dict = Column(JSON, nullable=True)
 
     def __init__(self, name: str, description: str, arguments: dict):
         self.name = name
@@ -47,20 +44,17 @@ class ToolCallsFunction:
         )
 
 
-class ToolCalls:
-    """
-    Liste des ToolCallsFunctions
-    L'API de Ollama veut englober les ToolCallsFunctions dans la liste de ToolCalls
+class ToolCalls(Base):
+    __tablename__ = "tool_calls"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    message_id: int = Column(Integer, ForeignKey("messages.id"))
 
-    :param functions: liste des fonctions
-    """
-    functions: list[ToolCallsFunction]
+    functions = relationship("ToolCallsFunction", backref="tool_call", cascade="all, delete-orphan")
 
     def __init__(self, functions: list[ToolCallsFunction]):
         self.functions = functions
 
     def format(self) -> dict:
-        # Ollama API requires a "function" key
         if isinstance(self.functions, list) and len(self.functions) > 0:
             return {"function": self.functions[0].format()}
         return {"function": getattr(self.functions, "format", lambda: {})()}
@@ -77,17 +71,20 @@ class ToolCalls:
         return cls(functions=functions)
 
 
-class Message:
-    """
-    Chat history as an array of message objects (each with a role and content)
-    """
-    role: Role
-    content: str
-    images: list[str]
-    tool_calls: list[ToolCalls]
-    thinking: Optional[str]
+class Message(Base):
+    __tablename__ = "messages"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id: int = Column(Integer, ForeignKey("chats.id"), nullable=True)
+    response_id: int = Column(Integer, ForeignKey("chat_responses.id"), nullable=True)
 
-    def __init__(self, role: Role, content: str, images: list[str] = None, tool_calls: list[ToolCalls] = None, thinking: str = None):
+    role: str = Column(String, nullable=False)
+    content: str = Column(Text, nullable=False)
+    images: list[str] = Column(JSON, nullable=True)
+    thinking: Optional[str] = Column(Text, nullable=True)
+
+    tool_calls = relationship("ToolCalls", backref="message", cascade="all, delete-orphan")
+
+    def __init__(self, role: str, content: str, images: list[str] = None, tool_calls: list[ToolCalls] = None, thinking: str = None):
         self.role = role
         self.content = content
         self.images = images if images is not None else []
@@ -121,7 +118,7 @@ class Message:
         )
 
 
-class MessageList(UserList[Message]):
+class MessageList(UserList):
     """Collection typée réservée aux objets Message."""
 
     def format_all(self, separator: str = "\n---\n") -> str:
@@ -137,10 +134,14 @@ class MessageList(UserList[Message]):
         return cls([Message.from_format(m) for m in data])
 
 
-class ToolsFunction:
-    name: str
-    parameters: dict
-    description: str
+class ToolsFunction(Base):
+    __tablename__ = "tools_functions"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    tool_id: int = Column(Integer, ForeignKey("tools.id"))
+
+    name: str = Column(String, nullable=False)
+    parameters: dict = Column(JSON, nullable=True)
+    description: str = Column(Text, nullable=True)
 
     def __init__(self, name: str, parameters: dict, description: str):
         self.name = name
@@ -165,11 +166,15 @@ class ToolsFunction:
         )
 
 
-class Tools:
-    tool_type: ToolType
-    tool_function: ToolsFunction
+class Tools(Base):
+    __tablename__ = "tools"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id: int = Column(Integer, ForeignKey("chats.id"))
 
-    def __init__(self, tool_type: ToolType, tool_function: ToolsFunction):
+    tool_type: str = Column(String, nullable=False)
+    tool_function = relationship("ToolsFunction", uselist=False, backref="tool", cascade="all, delete-orphan")
+
+    def __init__(self, tool_type: str, tool_function: ToolsFunction):
         self.tool_type = tool_type
         self.tool_function = tool_function
 
@@ -189,7 +194,7 @@ class Tools:
         )
 
 
-class ToolsList(UserList[Tools]):
+class ToolsList(UserList):
     """Collection typée réservée aux objets Message."""
 
     def format_all(self, separator: str = "\n---\n") -> str:
@@ -205,17 +210,21 @@ class ToolsList(UserList[Tools]):
         return cls([Tools.from_format(t) for t in data])
 
 
-class Options:
-    seed: int
-    temperature: float
-    top_k: int
-    top_p: float
-    min_p: float
-    stop: str | list[str]
-    num_ctx: int
-    num_predict: int
+class Options(Base):
+    __tablename__ = "options"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id: int = Column(Integer, ForeignKey("chats.id"))
 
-    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float, stop: str | list[str], num_ctx: int, num_predict: int):
+    seed: int = Column(Integer)
+    temperature: float = Column(Float)
+    top_k: int = Column(Integer)
+    top_p: float = Column(Float)
+    min_p: float = Column(Float)
+    stop: Union[str, list[str]] = Column(JSON)
+    num_ctx: int = Column(Integer)
+    num_predict: int = Column(Integer)
+
+    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float, stop: Union[str, list[str]], num_ctx: int, num_predict: int):
         self.seed = seed
         self.temperature = temperature
         self.top_k = top_k
@@ -253,19 +262,23 @@ class Options:
         )
 
 
-class Chat:
-    model: str
-    messages: MessageList
-    tools: ToolsList
-    request_format: Format
-    options: Options
-    stream: bool
-    think: bool | Think
-    keep_alive: str | int
-    logprobs: bool
-    top_logprobs: int
+class Chat(Base):
+    __tablename__ = "chats"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
 
-    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options, stream: bool, think: bool | Think, keep_alive: str | int, logprobs: bool, top_logprobs: int):
+    model: str = Column(String, nullable=False)
+    request_format: str = Column(String, nullable=True)
+    stream: bool = Column(Boolean, default=True)
+    think: str = Column(String, nullable=True)
+    keep_alive: str = Column(String, nullable=True)
+    logprobs: bool = Column(Boolean, default=False)
+    top_logprobs: int = Column(Integer, nullable=True)
+
+    messages = relationship("Message", collection_class=MessageList, backref="chat", foreign_keys="[Message.chat_id]", cascade="all, delete-orphan")
+    tools = relationship("Tools", collection_class=ToolsList, backref="chat", cascade="all, delete-orphan")
+    options = relationship("Options", uselist=False, backref="chat", cascade="all, delete-orphan")
+
+    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options, stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool, top_logprobs: int):
         self.model = model
         self.messages = messages
         self.tools = tools
@@ -317,10 +330,14 @@ class Chat:
         )
 
 
-class TopLogProb:
-    token: str
-    logprob: float
-    bytes: list[int]
+class TopLogProb(Base):
+    __tablename__ = "top_logprobs"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    logprob_id: int = Column(Integer, ForeignKey("logprobs.id"))
+
+    token: str = Column(String)
+    logprob: float = Column(Float)
+    bytes: list[int] = Column(JSON, nullable=True)
 
     def __init__(self, token: str, logprob: float, bytes_repr: list[int]):
         self.token = token
@@ -345,11 +362,16 @@ class TopLogProb:
         )
 
 
-class LogProb:
-    token: str
-    logprob: float
-    bytes: list[int]
-    top_logprobs: list[TopLogProb]
+class LogProb(Base):
+    __tablename__ = "logprobs"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    response_id: int = Column(Integer, ForeignKey("chat_responses.id"))
+
+    token: str = Column(String)
+    logprob: float = Column(Float)
+    bytes: list[int] = Column(JSON, nullable=True)
+    
+    top_logprobs = relationship("TopLogProb", backref="parent_logprob", cascade="all, delete-orphan")
 
     def __init__(self, token: str, logprob: float, bytes_repr: list[int], top_logprobs: list[TopLogProb]):
         self.token = token
@@ -377,20 +399,24 @@ class LogProb:
         )
 
 
-class ChatResponse:
-    model: str
-    created_at: str
-    message: Message
-    done: bool
-    done_reason: str
-    total_duration: int
-    load_duration: int
-    prompt_eval_count: int
-    prompt_eval_cached_count: int
-    prompt_eval_duration: int
-    eval_count: int
-    eval_duration: int
-    logprobs: Optional[list[LogProb]]
+class ChatResponse(Base):
+    __tablename__ = "chat_responses"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+
+    model: str = Column(String)
+    created_at: str = Column(String)
+    done: bool = Column(Boolean)
+    done_reason: str = Column(String)
+    total_duration: int = Column(Integer)
+    load_duration: int = Column(Integer)
+    prompt_eval_count: int = Column(Integer)
+    prompt_eval_cached_count: int = Column(Integer)
+    prompt_eval_duration: int = Column(Integer)
+    eval_count: int = Column(Integer)
+    eval_duration: int = Column(Integer)
+
+    message = relationship("Message", uselist=False, backref="response_parent", foreign_keys="[Message.response_id]", cascade="all, delete-orphan")
+    logprobs = relationship("LogProb", backref="response", cascade="all, delete-orphan")
 
     def __init__(
         self,
