@@ -19,10 +19,14 @@ class ToolCallsFunction:
     :param description:
     :param arguments:
     """
+    name: str
+    description: str
+    arguments: list[Any]
+
     def __init__(self, name: str, description: str, arguments: list[Any]):
-        self.name: str = name
-        self.description: str = description
-        self.arguments: list[Any] = arguments
+        self.name = name
+        self.description = description
+        self.arguments = arguments
 
 class ToolCalls:
     """
@@ -31,15 +35,21 @@ class ToolCalls:
 
     :param functions: liste des fonctions
     """
+    functions: list[ToolCallsFunction]
 
     def __init__(self, functions: list[ToolCallsFunction]):
-        self.functions: list[ToolCallsFunction] = functions
-
+        self.functions = functions
 
 class Message:
     """
     Chat history as an array of message objects (each with a role and content)
     """
+    role: Role
+    content: str
+    images: list[str]
+    tool_calls: list[ToolCalls]
+    thinking: Optional[str]
+
     def __init__(self, role: Role, content: str, images: list[str] = None, tool_calls: list[ToolCalls] = None, thinking: str = None):
         """
         :param role:
@@ -55,11 +65,11 @@ class Message:
         :param thinking:
         Optional thinking process for reasoning models
         """
-        self.role: Role = role
-        self.content: str = content
-        self.images: list[str] = images if images is not None else []
-        self.tool_calls: list[ToolCalls] = tool_calls if tool_calls is not None else []
-        self.thinking: Optional[str] = thinking
+        self.role = role
+        self.content = content
+        self.images = images if images is not None else []
+        self.tool_calls = tool_calls if tool_calls is not None else []
+        self.thinking = thinking
 
 class MessageList(UserList[Message]):
     """Collection typée réservée aux objets Message."""
@@ -69,15 +79,22 @@ class MessageList(UserList[Message]):
         return ""
 
 class ToolsFunction:
+    name: str
+    parameters: list[Any]
+    description: str
+
     def __init__(self, name: str, parameters: list[Any], description: str):
-        self.name: str = name
-        self.parameters: list[Any] = parameters
-        self.description: str = description
+        self.name = name
+        self.parameters = parameters
+        self.description = description
 
 class Tools:
+    tool_type: ToolType
+    tool_function: ToolsFunction
+
     def __init__(self, tool_type: ToolType, tool_function: ToolsFunction):
-        self.tool_type: ToolType = tool_type
-        self.tool_function: ToolsFunction = tool_function
+        self.tool_type = tool_type
+        self.tool_function = tool_function
 
 class ToolsList(UserList[Tools]):
     """Collection typée réservée aux objets Message."""
@@ -87,43 +104,86 @@ class ToolsList(UserList[Tools]):
         return ""
 
 class Options:
+    seed: int
+    temperature: float
+    top_k: int
+    top_p: float
+    min_p: float
+    stop: str | list[str]
+    num_ctx: int
+    num_predict: int
+
     def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float, stop: str | list[str], num_ctx: int, num_predict: int):
-        self.seed: int = seed
-        self.temperature: float = temperature
-        self.top_k: int = top_k
-        self.top_p: float = top_p
-        self.min_p: float = min_p
-        self.stop: str | list[str] = stop
-        self.num_ctx: int = num_ctx
-        self.num_predict: int = num_predict
+        self.seed = seed
+        self.temperature = temperature
+        self.top_k = top_k
+        self.top_p = top_p
+        self.min_p = min_p
+        self.stop = stop
+        self.num_ctx = num_ctx
+        self.num_predict = num_predict
 
 class Chat:
+    model: str
+    messages: MessageList
+    tools: ToolsList
+    request_format: Format
+    options: Options
+    stream: bool
+    think: bool | Think
+    keep_alive: str | int
+    logprobs: bool
+    top_logprobs: int
+
     def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options, stream: bool, think: bool | Think, keep_alive: str | int, logprobs: bool, top_logprobs: int):
-        self.model: str = model
-        self.messages: MessageList = messages
-        self.tools: ToolsList = tools
-        self.request_format: Format = request_format
-        self.options: Options = options
-        self.stream: bool = stream
-        self.think: bool | Think = think
-        self.keep_alive: str = keep_alive
-        self.logprobs: bool = logprobs
-        self.top_logprobs: int = top_logprobs
+        self.model = model
+        self.messages = messages
+        self.tools = tools
+        self.request_format = request_format
+        self.options = options
+        self.stream = stream
+        self.think = think
+        self.keep_alive = keep_alive
+        self.logprobs = logprobs
+        self.top_logprobs = top_logprobs
 
 class TopLogProb:
+    token: str
+    logprob: float
+    bytes: list[int]
+
     def __init__(self, token: str, logprob: float, bytes_repr: list[int]):
-        self.token: str = token
-        self.logprob: float = logprob
-        self.bytes: list[int] = bytes_repr
+        self.token = token
+        self.logprob = logprob
+        self.bytes = bytes_repr
 
 class LogProb:
+    token: str
+    logprob: float
+    bytes: list[int]
+    top_logprobs: list[TopLogProb]
+
     def __init__(self, token: str, logprob: float, bytes_repr: list[int], top_logprobs: list[TopLogProb]):
-        self.token: str = token
-        self.logprob: float = logprob
-        self.bytes: list[int] = bytes_repr
-        self.top_logprobs: list[TopLogProb] = top_logprobs
+        self.token = token
+        self.logprob = logprob
+        self.bytes = bytes_repr
+        self.top_logprobs = top_logprobs
 
 class ChatResponse:
+    model: str
+    created_at: str
+    message: Message
+    done: bool
+    done_reason: str
+    total_duration: int
+    load_duration: int
+    prompt_eval_count: int
+    prompt_eval_cached_count: int
+    prompt_eval_duration: int
+    eval_count: int
+    eval_duration: int
+    logprobs: Optional[list[LogProb]]
+
     def __init__(
         self,
         model: str,
@@ -140,16 +200,16 @@ class ChatResponse:
         eval_duration: int,
         logprobs: Optional[list[LogProb]] = None
     ):
-        self.model: str = model
-        self.created_at: str = created_at
-        self.message: Message = message
-        self.done: bool = done
-        self.done_reason: str = done_reason
-        self.total_duration: int = total_duration
-        self.load_duration: int = load_duration
-        self.prompt_eval_count: int = prompt_eval_count
-        self.prompt_eval_cached_count: int = prompt_eval_cached_count
-        self.prompt_eval_duration: int = prompt_eval_duration
-        self.eval_count: int = eval_count
-        self.eval_duration: int = eval_duration
-        self.logprobs: Optional[list[LogProb]] = logprobs
+        self.model = model
+        self.created_at = created_at
+        self.message = message
+        self.done = done
+        self.done_reason = done_reason
+        self.total_duration = total_duration
+        self.load_duration = load_duration
+        self.prompt_eval_count = prompt_eval_count
+        self.prompt_eval_cached_count = prompt_eval_cached_count
+        self.prompt_eval_duration = prompt_eval_duration
+        self.eval_count = eval_count
+        self.eval_duration = eval_duration
+        self.logprobs = logprobs
