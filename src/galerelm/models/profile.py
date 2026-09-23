@@ -30,7 +30,7 @@ class Profile(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         prof = cls(
             name=data.get("name", ""),

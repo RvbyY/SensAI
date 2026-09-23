@@ -35,7 +35,7 @@ class ToolCallsFunction(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         return cls(
             name=data.get("name", ""),
@@ -52,7 +52,7 @@ class ToolCalls(Base):
     functions = relationship("ToolCallsFunction", backref="tool_call", cascade="all, delete-orphan")
 
     def __init__(self, functions: list[ToolCallsFunction]):
-        self.functions = functions
+        self.functions = functions if functions is not None else []
 
     def format(self) -> dict:
         if isinstance(self.functions, list) and len(self.functions) > 0:
@@ -61,7 +61,7 @@ class ToolCalls(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         func_data = data.get("function")
         if func_data and isinstance(func_data, dict):
@@ -106,7 +106,7 @@ class Message(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         tool_calls_data = data.get("tool_calls", [])
         return cls(
@@ -129,7 +129,7 @@ class MessageList(UserList):
 
     @classmethod
     def from_format(cls, data: list[dict]):
-        if not data:
+        if data is None:
             return cls([])
         return cls([Message.from_format(m) for m in data])
 
@@ -157,7 +157,7 @@ class ToolsFunction(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         return cls(
             name=data.get("name", ""),
@@ -186,7 +186,7 @@ class Tools(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         return cls(
             tool_type=data.get("type", "function"),
@@ -205,7 +205,7 @@ class ToolsList(UserList):
 
     @classmethod
     def from_format(cls, data: list[dict]):
-        if not data:
+        if data is None:
             return cls([])
         return cls([Tools.from_format(t) for t in data])
 
@@ -248,7 +248,7 @@ class Options(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         return cls(
             seed=data.get("seed", 0),
@@ -280,8 +280,8 @@ class Chat(Base):
 
     def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options, stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool, top_logprobs: int):
         self.model = model
-        self.messages = messages
-        self.tools = tools
+        self.messages = messages if messages is not None else MessageList([])
+        self.tools = tools if tools is not None else ToolsList([])
         self.request_format = request_format
         self.options = options
         self.stream = stream
@@ -314,7 +314,7 @@ class Chat(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         return cls(
             model=data.get("model", ""),
@@ -353,7 +353,7 @@ class TopLogProb(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         return cls(
             token=data.get("token", ""),
@@ -377,7 +377,7 @@ class LogProb(Base):
         self.token = token
         self.logprob = logprob
         self.bytes = bytes_repr
-        self.top_logprobs = top_logprobs
+        self.top_logprobs = top_logprobs if top_logprobs is not None else []
 
     def format(self) -> dict:
         return {
@@ -389,7 +389,7 @@ class LogProb(Base):
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         return cls(
             token=data.get("token", ""),
@@ -446,7 +446,7 @@ class ChatResponse(Base):
         self.prompt_eval_duration = prompt_eval_duration
         self.eval_count = eval_count
         self.eval_duration = eval_duration
-        self.logprobs = logprobs
+        self.logprobs = logprobs if logprobs is not None else []
 
     def format(self) -> dict:
         res = {
@@ -463,13 +463,13 @@ class ChatResponse(Base):
             "eval_count": self.eval_count,
             "eval_duration": self.eval_duration,
         }
-        if self.logprobs is not None:
+        if self.logprobs:
             res["logprobs"] = [lp.format() for lp in self.logprobs]
         return res
 
     @classmethod
     def from_format(cls, data: dict):
-        if not data:
+        if data is None:
             return None
         logprobs_data = data.get("logprobs")
         return cls(
