@@ -200,3 +200,27 @@ def test_tool_calls_edge_cases():
     # Test when function in JSON is not a dict
     tc = ToolCalls.from_format({"function": "not_a_dict"})
     assert len(tc.functions) == 0
+
+def test_missing_coverage():
+    # Cover line 60 (ToolCalls with empty list)
+    tc_empty = ToolCalls(functions=[])
+    assert tc_empty.format() == {"function": {}}
+
+    # Cover lines 100, 102 (Message with images and tool_calls)
+    tc = ToolCalls(functions=[ToolCallsFunction("name", "desc", {})])
+    msg = Message(role="user", content="Hi", images=["base64img"], tool_calls=[tc])
+    d = msg.format()
+    assert d["images"] == ["base64img"]
+    assert "tool_calls" in d
+    assert len(d["tool_calls"]) == 1
+
+    # Cover line 467 (ChatResponse with logprobs)
+    lp = LogProb(token="tok", logprob=0.1, bytes_repr=[], top_logprobs=[])
+    resp = ChatResponse(
+        model="m", created_at="now", message=None, done=True, done_reason="stop",
+        total_duration=1, load_duration=1, prompt_eval_count=1, prompt_eval_cached_count=1,
+        prompt_eval_duration=1, eval_count=1, eval_duration=1, logprobs=[lp]
+    )
+    d2 = resp.format()
+    assert "logprobs" in d2
+    assert d2["logprobs"][0]["token"] == "tok"
