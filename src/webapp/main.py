@@ -23,3 +23,5 @@ chatbot = gr.Interface(
     ],
     api_name="galere",
 )
+
+chatbot.launch(share=True)
