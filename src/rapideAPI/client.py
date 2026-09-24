@@ -47,6 +47,10 @@ class RapideAPI:
             logger.error(f"[!] Erreur API après {duration:.2f}s lors de la requête [{method}] {url}: {e}")
             raise e
 
+        # Si l'utilisateur demande un stream, on renvoie l'objet réponse brut
+        if kwargs.get("stream"):
+            return response
+
         # Retourne automatiquement du JSON si le serveur renvoie ce type
         content_type = response.headers.get("Content-Type", "")
         if "application/json" in content_type:
@@ -60,7 +64,7 @@ class RapideAPI:
     def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         return self.request("GET", endpoint, params=params, **kwargs)
 
-    def post(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, stream: bool = False, **kwargs) -> Any:
+    def post(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, **kwargs) -> Any:
         return self.request("POST", endpoint, data=data, json=json, **kwargs)
 
     def put(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, **kwargs) -> Any:
