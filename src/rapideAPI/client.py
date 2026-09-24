@@ -60,7 +60,7 @@ class RapideAPI:
     def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         return self.request("GET", endpoint, params=params, **kwargs)
 
-    def post(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, **kwargs) -> Any:
+    def post(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, stream: bool = False, **kwargs) -> Any:
         return self.request("POST", endpoint, data=data, json=json, **kwargs)
 
     def put(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, **kwargs) -> Any:
