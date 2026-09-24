@@ -10,7 +10,7 @@ class RapideAPI:
     des requêtes API, similaire à l'approche de FastAPI mais pour le côté client.
     """
     
-    def __init__(self, base_url: str = "", default_headers: Optional[Dict[str, str]] = None, timeout: int = 10):
+    def __init__(self, base_url: str = "", default_headers: Optional[Dict[str, str]] = None, timeout: int = 120):
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.session = requests.Session()
@@ -25,16 +25,26 @@ class RapideAPI:
 
     def request(self, method: str, endpoint: str, **kwargs) -> Any:
         """Méthode centrale pour envoyer des requêtes et gérer les erreurs."""
+        import time
         url = self._build_url(endpoint)
         kwargs.setdefault("timeout", self.timeout)
 
-        logger.debug(f"[{method}] {url} - {kwargs}")
+        logger.info(f"==> [{method}] {url}")
+        logger.debug(f"Payload/Params: {kwargs}")
 
+        start_time = time.time()
         try:
             response = self.session.request(method, url, **kwargs)
+            duration = time.time() - start_time
+            logger.info(f"<== [{method}] {url} - Status: {response.status_code} - Temps: {duration:.2f}s")
             response.raise_for_status()
+        except requests.exceptions.Timeout as e:
+            duration = time.time() - start_time
+            logger.error(f"[!] TIMEOUT après {duration:.2f}s sur la requête [{method}] {url}")
+            raise e
         except requests.exceptions.RequestException as e:
-            logger.error(f"Erreur API lors de la requête [{method}] {url}: {e}")
+            duration = time.time() - start_time
+            logger.error(f"[!] Erreur API après {duration:.2f}s lors de la requête [{method}] {url}: {e}")
             raise e
 
         # Retourne automatiquement du JSON si le serveur renvoie ce type
@@ -61,3 +71,8 @@ class RapideAPI:
 
     def patch(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, **kwargs) -> Any:
         return self.request("PATCH", endpoint, data=data, json=json, **kwargs)
+
+    def health(self):
+        health = self.request("GET", "api/version")
+        print(health)
+        return health is not None

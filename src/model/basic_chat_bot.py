@@ -8,7 +8,7 @@ messages = [
     {"role": "system", "content": "Tu es un homme complétement en colère contre moi"}
 ]
 
-def generate_prompt(prompt: str, profile: Profile = None, persistence: bool = True, budgeting: int = -1, tools: bool = True, sandbox_code: bool = True, web_search: bool = True, file_access: bool = True, structured_language: Structure = "json", reasoning: bool = True, rollback: bool = True, persona: str = None, interrupt: bool = True)
+def generate_prompt(prompt: str, profile: Profile = None, persistence: bool = True, budgeting: int = -1, tools: bool = True, sandbox_code: bool = True, web_search: bool = True, file_access: bool = True, structured_language: Structure = "json", reasoning: bool = True, rollback: bool = True, persona: str = None, interrupt: bool = True):
     return "prompt"
 
 def main():

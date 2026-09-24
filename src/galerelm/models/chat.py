@@ -84,7 +84,8 @@ class Message(Base):
 
     tool_calls = relationship("ToolCalls", backref="message", cascade="all, delete-orphan")
 
-    def __init__(self, role: str, content: str, images: list[str] = None, tool_calls: list[ToolCalls] = None, thinking: str = None):
+    def __init__(self, role: str, content: str, images: list[str] = None, tool_calls: list[ToolCalls] = None,
+                 thinking: str = None):
         self.role = role
         self.content = content
         self.images = images if images is not None else []
@@ -224,7 +225,8 @@ class Options(Base):
     num_ctx: int = Column(Integer)
     num_predict: int = Column(Integer)
 
-    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float, stop: Union[str, list[str]], num_ctx: int, num_predict: int):
+    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float,
+                 stop: Union[str, list[str]], num_ctx: int, num_predict: int):
         self.seed = seed
         self.temperature = temperature
         self.top_k = top_k
@@ -274,11 +276,14 @@ class Chat(Base):
     logprobs: bool = Column(Boolean, default=False)
     top_logprobs: int = Column(Integer, nullable=True)
 
-    messages = relationship("Message", collection_class=MessageList, backref="chat", foreign_keys="[Message.chat_id]", cascade="all, delete-orphan")
+    messages = relationship("Message", collection_class=MessageList, backref="chat", foreign_keys="[Message.chat_id]",
+                            cascade="all, delete-orphan")
     tools = relationship("Tools", collection_class=ToolsList, backref="chat", cascade="all, delete-orphan")
     options = relationship("Options", uselist=False, backref="chat", cascade="all, delete-orphan")
 
-    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options, stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool, top_logprobs: int):
+    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options,
+                 stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool,
+                 top_logprobs: int):
         self.model = model
         self.messages = messages if messages is not None else MessageList([])
         self.tools = tools if tools is not None else ToolsList([])
@@ -370,7 +375,7 @@ class LogProb(Base):
     token: str = Column(String)
     logprob: float = Column(Float)
     bytes: list[int] = Column(JSON, nullable=True)
-    
+
     top_logprobs = relationship("TopLogProb", backref="parent_logprob", cascade="all, delete-orphan")
 
     def __init__(self, token: str, logprob: float, bytes_repr: list[int], top_logprobs: list[TopLogProb]):
@@ -415,24 +420,25 @@ class ChatResponse(Base):
     eval_count: int = Column(Integer)
     eval_duration: int = Column(Integer)
 
-    message = relationship("Message", uselist=False, backref="response_parent", foreign_keys="[Message.response_id]", cascade="all, delete-orphan")
+    message = relationship("Message", uselist=False, backref="response_parent", foreign_keys="[Message.response_id]",
+                           cascade="all, delete-orphan")
     logprobs = relationship("LogProb", backref="response", cascade="all, delete-orphan")
 
     def __init__(
-        self,
-        model: str,
-        created_at: str,
-        message: Message,
-        done: bool,
-        done_reason: str,
-        total_duration: int,
-        load_duration: int,
-        prompt_eval_count: int,
-        prompt_eval_cached_count: int,
-        prompt_eval_duration: int,
-        eval_count: int,
-        eval_duration: int,
-        logprobs: Optional[list[LogProb]] = None
+            self,
+            model: str,
+            created_at: str,
+            message: Message,
+            done: bool,
+            done_reason: str,
+            total_duration: int,
+            load_duration: int,
+            prompt_eval_count: int,
+            prompt_eval_cached_count: int,
+            prompt_eval_duration: int,
+            eval_count: int,
+            eval_duration: int,
+            logprobs: Optional[list[LogProb]] = None
     ):
         self.model = model
         self.created_at = created_at

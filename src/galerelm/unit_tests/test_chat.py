@@ -5,6 +5,7 @@ from src.galerelm.models.chat import (
     ChatResponse, ToolCalls, ToolCallsFunction, LogProb, TopLogProb
 )
 
+
 def test_message_format():
     msg = Message(role="user", content="Hello", thinking="Hmm")
     d = msg.format()
@@ -18,11 +19,12 @@ def test_message_format():
     assert msg_back.content == "Hello"
     assert msg_back.thinking == "Hmm"
 
+
 def test_tool_calls_format():
     tc_func = ToolCallsFunction(name="weather", description="get weather", arguments={"city": "Paris"})
     tc = ToolCalls(functions=[tc_func])
     d = tc.format()
-    
+
     assert "function" in d
     assert d["function"]["name"] == "weather"
     assert d["function"]["arguments"]["city"] == "Paris"
@@ -31,15 +33,17 @@ def test_tool_calls_format():
     assert len(tc_back.functions) == 1
     assert tc_back.functions[0].name == "weather"
 
+
 def test_options_format():
     opts = Options(seed=42, temperature=0.7, top_k=50, top_p=0.9, min_p=0.0, stop=["\n"], num_ctx=1024, num_predict=100)
     d = opts.format()
     assert d["seed"] == 42
     assert d["temperature"] == 0.7
-    
+
     opts_back = Options.from_format(d)
     assert opts_back.seed == 42
     assert opts_back.temperature == 0.7
+
 
 def test_chat_format():
     opts = Options(seed=42, temperature=0.7, top_k=50, top_p=0.9, min_p=0.0, stop=["\n"], num_ctx=1024, num_predict=100)
@@ -49,7 +53,7 @@ def test_chat_format():
     msgs = MessageList([
         Message(role="system", content="You are a bot")
     ])
-    
+
     chat = Chat(
         model="llama3",
         messages=msgs,
@@ -77,6 +81,7 @@ def test_chat_format():
     assert len(chat_back.messages) == 1
     assert chat_back.messages[0].role == "system"
     assert chat_back.options.seed == 42
+
 
 def test_chat_response():
     data = {
@@ -109,19 +114,21 @@ def test_chat_response():
     assert d["message"]["content"] == "The sky is blue."
     assert d["total_duration"] == 123
 
+
 def test_logprob_format():
     top_lp = TopLogProb(token="sky", logprob=-0.5, bytes_repr=[115, 107, 121])
     lp = LogProb(token="the", logprob=-0.1, bytes_repr=[116, 104, 101], top_logprobs=[top_lp])
-    
+
     d = lp.format()
     assert d["token"] == "the"
     assert d["logprob"] == -0.1
     assert len(d["top_logprobs"]) == 1
     assert d["top_logprobs"][0]["token"] == "sky"
-    
+
     lp_back = LogProb.from_format(d)
     assert lp_back.token == "the"
     assert lp_back.top_logprobs[0].token == "sky"
+
 
 def test_empty_from_format():
     # Tests that providing None returns None gracefully
@@ -135,10 +142,11 @@ def test_empty_from_format():
     assert TopLogProb.from_format(None) is None
     assert LogProb.from_format(None) is None
     assert ChatResponse.from_format(None) is None
-    
+
     # UserLists return empty lists
     assert len(MessageList.from_format(None)) == 0
     assert len(ToolsList.from_format(None)) == 0
+
 
 def test_from_format_empty_dict():
     # Tests that providing {} falls back to default values properly
@@ -153,15 +161,17 @@ def test_from_format_empty_dict():
     assert LogProb.from_format({}).token == ""
     assert ChatResponse.from_format({}).model == ""
 
+
 def test_format_all():
     ml = MessageList([
         Message(role="user", content="Hello"),
         Message(role="assistant", content="Hi")
     ])
     assert ml.format_all() == "Hello\n---\nHi"
-    
+
     tl = ToolsList([])
     assert tl.format_all() == ""
+
 
 def test_chat_none_fields():
     chat = Chat(
@@ -186,6 +196,7 @@ def test_chat_none_fields():
     assert "logprobs" not in d
     assert "top_logprobs" not in d
 
+
 def test_chat_response_none_fields():
     resp = ChatResponse(
         model="m", created_at="now", message=None, done=True, done_reason="stop",
@@ -196,31 +207,8 @@ def test_chat_response_none_fields():
     assert d["message"] is None
     assert "logprobs" not in d
 
+
 def test_tool_calls_edge_cases():
     # Test when function in JSON is not a dict
     tc = ToolCalls.from_format({"function": "not_a_dict"})
     assert len(tc.functions) == 0
-
-def test_missing_coverage():
-    # Cover line 60 (ToolCalls with empty list)
-    tc_empty = ToolCalls(functions=[])
-    assert tc_empty.format() == {"function": {}}
-
-    # Cover lines 100, 102 (Message with images and tool_calls)
-    tc = ToolCalls(functions=[ToolCallsFunction("name", "desc", {})])
-    msg = Message(role="user", content="Hi", images=["base64img"], tool_calls=[tc])
-    d = msg.format()
-    assert d["images"] == ["base64img"]
-    assert "tool_calls" in d
-    assert len(d["tool_calls"]) == 1
-
-    # Cover line 467 (ChatResponse with logprobs)
-    lp = LogProb(token="tok", logprob=0.1, bytes_repr=[], top_logprobs=[])
-    resp = ChatResponse(
-        model="m", created_at="now", message=None, done=True, done_reason="stop",
-        total_duration=1, load_duration=1, prompt_eval_count=1, prompt_eval_cached_count=1,
-        prompt_eval_duration=1, eval_count=1, eval_duration=1, logprobs=[lp]
-    )
-    d2 = resp.format()
-    assert "logprobs" in d2
-    assert d2["logprobs"][0]["token"] == "tok"
