@@ -271,7 +271,7 @@ class Chat(Base):
     model: str = Column(String, nullable=False)
     request_format: str = Column(String, nullable=True)
     stream: bool = Column(Boolean, default=True)
-    think: str = Column(String, nullable=True)
+    think: Think | bool = Column(String, nullable=True)
     keep_alive: str = Column(String, nullable=True)
     logprobs: bool = Column(Boolean, default=False)
     top_logprobs: int = Column(Integer, nullable=True)
@@ -281,7 +281,7 @@ class Chat(Base):
     tools = relationship("Tools", collection_class=ToolsList, backref="chat", cascade="all, delete-orphan")
     options = relationship("Options", uselist=False, backref="chat", cascade="all, delete-orphan")
 
-    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options,
+    def __init__(self, model: str, messages: MessageList | None, tools: ToolsList | None, request_format: Format, options: Options,
                  stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool,
                  top_logprobs: int):
         self.model = model
@@ -333,6 +333,10 @@ class Chat(Base):
             logprobs=data.get("logprobs", False),
             top_logprobs=data.get("top_logprobs")
         )
+
+    def add_message(self, content: str, image: list[str], tool_calls: list[ToolCalls] | None, thinking: str = "medium", role: str = "user"):
+        message = Message(role, content, image, tool_calls, thinking)
+        self.messages.append(message)
 
 
 class TopLogProb(Base):

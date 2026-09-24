@@ -34,23 +34,23 @@ options = Options(
 )
 
 # On prépare le message utilisateur
-messages = MessageList([
-    Message(role="user", content=user_prompt)
-])
+messages = MessageList([])
 
 # On configure le Chat (en activant le stream)
 user_chat = Chat(
     model=hf_model, 
     messages=messages, 
     tools=None, 
-    request_format=None, 
+    request_format="json",
     options=options, 
     stream=True, 
-    think=None, 
+    think="medium",
     keep_alive="5m", 
     logprobs=False, 
     top_logprobs=0
 )
+
+user_chat.add_message(user_prompt, [], None)
 
 # Lancement de la requête avec stream=True (récupère l'objet response brut de requests)
 response = api.post("api/chat", json=user_chat.format(), stream=True)
