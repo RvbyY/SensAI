@@ -1,17 +1,220 @@
 from typing import Literal, Optional, Any, Union
+from collections import UserList
+
 from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Float, JSON
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
 
+Role = Literal["system", "user", "assistant", "tool"]
+ToolType = Literal["function"]
 Format = Literal["json"]
 Think = Literal["high", "medium", "low", "max"]
+
+
+class ToolCallsFunction(Base):
+    __tablename__ = "tool_calls_functions"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    tool_call_id: int = Column(Integer, ForeignKey("tool_calls.id"))
+
+    name: str = Column(String, nullable=False)
+    description: str = Column(Text, nullable=True)
+    arguments: dict = Column(JSON, nullable=True)
+
+    def __init__(self, name: str, description: str, arguments: dict):
+        self.name = name
+        self.description = description
+        self.arguments = arguments
+
+    def format(self) -> dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "arguments": self.arguments
+        }
+
+    @classmethod
+    def from_format(cls, data: dict):
+        if data is None:
+            return None
+        return cls(
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            arguments=data.get("arguments", {})
+        )
+
+
+class ToolCalls(Base):
+    __tablename__ = "tool_calls"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    message_id: int = Column(Integer, ForeignKey("messages.id"))
+
+    functions = relationship("ToolCallsFunction", backref="tool_call", cascade="all, delete-orphan")
+
+    def __init__(self, functions: list[ToolCallsFunction]):
+        self.functions = functions if functions is not None else []
+
+    def format(self) -> dict:
+        if isinstance(self.functions, list) and len(self.functions) > 0:
+            return {"function": self.functions[0].format()}
+        return {"function": getattr(self.functions, "format", lambda: {})()}
+
+    @classmethod
+    def from_format(cls, data: dict):
+        if data is None:
+            return None
+        func_data = data.get("function")
+        if func_data and isinstance(func_data, dict):
+            functions = [ToolCallsFunction.from_format(func_data)]
+        else:
+            functions = []
+        return cls(functions=functions)
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id: int = Column(Integer, ForeignKey("chats.id"), nullable=True)
+    response_id: int = Column(Integer, ForeignKey("chat_responses.id"), nullable=True)
+
+    role: str = Column(String, nullable=False)
+    content: str = Column(Text, nullable=False)
+    images: list[str] = Column(JSON, nullable=True)
+    thinking: Optional[str] = Column(Text, nullable=True)
+
+    tool_calls = relationship("ToolCalls", backref="message", cascade="all, delete-orphan")
+
+    def __init__(self, role: str, content: str, images: list[str] = None, tool_calls: list[ToolCalls] = None,
+                 thinking: str = None):
+        self.role = role
+        self.content = content
+        self.images = images if images is not None else []
+        self.tool_calls = tool_calls if tool_calls is not None else []
+        self.thinking = thinking
+
+    def format(self) -> dict:
+        res = {
+            "role": self.role,
+            "content": self.content,
+        }
+        if self.images:
+            res["images"] = self.images
+        if self.tool_calls:
+            res["tool_calls"] = [tc.format() for tc in self.tool_calls]
+        if self.thinking is not None:
+            res["thinking"] = self.thinking
+        return res
+
+    @classmethod
+    def from_format(cls, data: dict):
+        if data is None:
+            return None
+        tool_calls_data = data.get("tool_calls", [])
+        return cls(
+            role=data.get("role", "user"),
+            content=data.get("content", ""),
+            images=data.get("images", []),
+            tool_calls=[ToolCalls.from_format(tc) for tc in tool_calls_data] if tool_calls_data else [],
+            thinking=data.get("thinking")
+        )
+
+
+class MessageList(UserList):
+    """Collection typée réservée aux objets Message."""
+
+    def format_all(self, separator: str = "\n---\n") -> str:
+        return separator.join([m.content for m in self.data])
+
+    def format(self) -> list[dict]:
+        return [m.format() for m in self.data]
+
+    @classmethod
+    def from_format(cls, data: list[dict]):
+        if data is None:
+            return cls([])
+        return cls([Message.from_format(m) for m in data])
+
+
+class ToolsFunction(Base):
+    __tablename__ = "tools_functions"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    tool_id: int = Column(Integer, ForeignKey("tools.id"))
+
+    name: str = Column(String, nullable=False)
+    parameters: dict = Column(JSON, nullable=True)
+    description: str = Column(Text, nullable=True)
+
+    def __init__(self, name: str, parameters: dict, description: str):
+        self.name = name
+        self.parameters = parameters
+        self.description = description
+
+    def format(self) -> dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters
+        }
+
+    @classmethod
+    def from_format(cls, data: dict):
+        if data is None:
+            return None
+        return cls(
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            parameters=data.get("parameters", {})
+        )
+
+
+class Tools(Base):
+    __tablename__ = "tools"
+    id: int = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id: int = Column(Integer, ForeignKey("chats.id"))
+
+    tool_type: str = Column(String, nullable=False)
+    tool_function = relationship("ToolsFunction", uselist=False, backref="tool", cascade="all, delete-orphan")
+
+    def __init__(self, tool_type: str, tool_function: ToolsFunction):
+        self.tool_type = tool_type
+        self.tool_function = tool_function
+
+    def format(self) -> dict:
+        return {
+            "type": self.tool_type,
+            "function": self.tool_function.format() if self.tool_function else None
+        }
+
+    @classmethod
+    def from_format(cls, data: dict):
+        if data is None:
+            return None
+        return cls(
+            tool_type=data.get("type", "function"),
+            tool_function=ToolsFunction.from_format(data.get("function", {}))
+        )
+
+
+class ToolsList(UserList):
+    """Collection typée réservée aux objets Message."""
+
+    def format_all(self, separator: str = "\n---\n") -> str:
+        return ""
+
+    def format(self) -> list[dict]:
+        return [t.format() for t in self.data]
+
+    @classmethod
+    def from_format(cls, data: list[dict]):
+        if data is None:
+            return cls([])
+        return cls([Tools.from_format(t) for t in data])
 
 
 class Options(Base):
     __tablename__ = "options"
     id: int = Column(Integer, primary_key=True, autoincrement=True)
-    generate_id: int = Column(Integer, ForeignKey("generate_requests.id"), nullable=True)
+    chat_id: int = Column(Integer, ForeignKey("chats.id"))
 
     seed: int = Column(Integer)
     temperature: float = Column(Float)
@@ -22,7 +225,8 @@ class Options(Base):
     num_ctx: int = Column(Integer)
     num_predict: int = Column(Integer)
 
-    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float, stop: Union[str, list[str]], num_ctx: int, num_predict: int):
+    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float,
+                 stop: Union[str, list[str]], num_ctx: int, num_predict: int):
         self.seed = seed
         self.temperature = temperature
         self.top_k = top_k
@@ -60,76 +264,53 @@ class Options(Base):
         )
 
 
-class GenerateRequest(Base):
-    __tablename__ = "generate_requests"
+class Chat(Base):
+    __tablename__ = "chats"
     id: int = Column(Integer, primary_key=True, autoincrement=True)
 
     model: str = Column(String, nullable=False)
-    prompt: str = Column(Text, nullable=False)
-    suffix: Optional[str] = Column(Text, nullable=True)
-    images: list[str] = Column(JSON, nullable=True)
-    request_format: Optional[str] = Column(String, nullable=True)
-    system: Optional[str] = Column(Text, nullable=True)
+    request_format: str = Column(String, nullable=True)
     stream: bool = Column(Boolean, default=True)
-    think: Optional[str] = Column(String, nullable=True)
-    raw: bool = Column(Boolean, default=False)
-    keep_alive: Optional[str] = Column(String, nullable=True)
+    think: str = Column(String, nullable=True)
+    keep_alive: str = Column(String, nullable=True)
     logprobs: bool = Column(Boolean, default=False)
-    top_logprobs: Optional[int] = Column(Integer, nullable=True)
+    top_logprobs: int = Column(Integer, nullable=True)
 
-    options = relationship("Options", uselist=False, backref="generate_request", cascade="all, delete-orphan")
+    messages = relationship("Message", collection_class=MessageList, backref="chat", foreign_keys="[Message.chat_id]",
+                            cascade="all, delete-orphan")
+    tools = relationship("Tools", collection_class=ToolsList, backref="chat", cascade="all, delete-orphan")
+    options = relationship("Options", uselist=False, backref="chat", cascade="all, delete-orphan")
 
-    def __init__(
-        self, 
-        model: str, 
-        prompt: str, 
-        suffix: str = None, 
-        images: list[str] = None, 
-        request_format: Format = None, 
-        system: str = None, 
-        stream: bool = True, 
-        think: Union[bool, Think] = None, 
-        raw: bool = False, 
-        keep_alive: Union[str, int] = None, 
-        logprobs: bool = False, 
-        top_logprobs: int = None, 
-        options: Options = None
-    ):
+    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options,
+                 stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool,
+                 top_logprobs: int):
         self.model = model
-        self.prompt = prompt
-        self.suffix = suffix
-        self.images = images if images is not None else []
+        self.messages = messages if messages is not None else MessageList([])
+        self.tools = tools if tools is not None else ToolsList([])
         self.request_format = request_format
-        self.system = system
+        self.options = options
         self.stream = stream
         self.think = think
-        self.raw = raw
         self.keep_alive = keep_alive
         self.logprobs = logprobs
         self.top_logprobs = top_logprobs
-        self.options = options
 
     def format(self) -> dict:
         res = {
             "model": self.model,
-            "prompt": self.prompt,
+            "messages": self.messages.format() if self.messages else [],
             "stream": self.stream,
-            "raw": self.raw,
         }
-        if self.suffix is not None:
-            res["suffix"] = self.suffix
-        if self.images:
-            res["images"] = self.images
-        if self.request_format is not None:
+        if self.tools:
+            res["tools"] = self.tools.format()
+        if self.request_format:
             res["format"] = self.request_format
-        if self.system is not None:
-            res["system"] = self.system
+        if self.options:
+            res["options"] = self.options.format()
         if self.think is not None:
             res["think"] = self.think
         if self.keep_alive is not None:
             res["keep_alive"] = self.keep_alive
-        if self.options is not None:
-            res["options"] = self.options.format()
         if self.logprobs is not None:
             res["logprobs"] = self.logprobs
         if self.top_logprobs is not None:
@@ -142,18 +323,15 @@ class GenerateRequest(Base):
             return None
         return cls(
             model=data.get("model", ""),
-            prompt=data.get("prompt", ""),
-            suffix=data.get("suffix"),
-            images=data.get("images", []),
-            request_format=data.get("format"),
-            system=data.get("system"),
+            messages=MessageList.from_format(data.get("messages", [])),
+            tools=ToolsList.from_format(data.get("tools", [])),
+            request_format=data.get("format", "json"),
+            options=Options.from_format(data.get("options")) if data.get("options") else None,
             stream=data.get("stream", True),
             think=data.get("think"),
-            raw=data.get("raw", False),
             keep_alive=data.get("keep_alive"),
             logprobs=data.get("logprobs", False),
-            top_logprobs=data.get("top_logprobs"),
-            options=Options.from_format(data.get("options")) if data.get("options") else None
+            top_logprobs=data.get("top_logprobs")
         )
 
 
@@ -192,12 +370,12 @@ class TopLogProb(Base):
 class LogProb(Base):
     __tablename__ = "logprobs"
     id: int = Column(Integer, primary_key=True, autoincrement=True)
-    response_id: int = Column(Integer, ForeignKey("generate_responses.id"))
+    response_id: int = Column(Integer, ForeignKey("chat_responses.id"))
 
     token: str = Column(String)
     logprob: float = Column(Float)
     bytes: list[int] = Column(JSON, nullable=True)
-    
+
     top_logprobs = relationship("TopLogProb", backref="parent_logprob", cascade="all, delete-orphan")
 
     def __init__(self, token: str, logprob: float, bytes_repr: list[int], top_logprobs: list[TopLogProb]):
@@ -226,14 +404,12 @@ class LogProb(Base):
         )
 
 
-class GenerateResponse(Base):
-    __tablename__ = "generate_responses"
+class ChatResponse(Base):
+    __tablename__ = "chat_responses"
     id: int = Column(Integer, primary_key=True, autoincrement=True)
 
     model: str = Column(String)
     created_at: str = Column(String)
-    response: str = Column(Text)
-    thinking: Optional[str] = Column(Text, nullable=True)
     done: bool = Column(Boolean)
     done_reason: str = Column(String)
     total_duration: int = Column(Integer)
@@ -244,29 +420,29 @@ class GenerateResponse(Base):
     eval_count: int = Column(Integer)
     eval_duration: int = Column(Integer)
 
-    logprobs = relationship("LogProb", backref="generate_response", cascade="all, delete-orphan")
+    message = relationship("Message", uselist=False, backref="response_parent", foreign_keys="[Message.response_id]",
+                           cascade="all, delete-orphan")
+    logprobs = relationship("LogProb", backref="response", cascade="all, delete-orphan")
 
     def __init__(
-        self,
-        model: str,
-        created_at: str,
-        response: str,
-        done: bool,
-        done_reason: str,
-        total_duration: int,
-        load_duration: int,
-        prompt_eval_count: int,
-        prompt_eval_cached_count: int,
-        prompt_eval_duration: int,
-        eval_count: int,
-        eval_duration: int,
-        thinking: str = None,
-        logprobs: Optional[list[LogProb]] = None
+            self,
+            model: str,
+            created_at: str,
+            message: Message,
+            done: bool,
+            done_reason: str,
+            total_duration: int,
+            load_duration: int,
+            prompt_eval_count: int,
+            prompt_eval_cached_count: int,
+            prompt_eval_duration: int,
+            eval_count: int,
+            eval_duration: int,
+            logprobs: Optional[list[LogProb]] = None
     ):
         self.model = model
         self.created_at = created_at
-        self.response = response
-        self.thinking = thinking
+        self.message = message
         self.done = done
         self.done_reason = done_reason
         self.total_duration = total_duration
@@ -282,7 +458,7 @@ class GenerateResponse(Base):
         res = {
             "model": self.model,
             "created_at": self.created_at,
-            "response": self.response,
+            "message": self.message.format() if self.message else None,
             "done": self.done,
             "done_reason": self.done_reason,
             "total_duration": self.total_duration,
@@ -293,8 +469,6 @@ class GenerateResponse(Base):
             "eval_count": self.eval_count,
             "eval_duration": self.eval_duration,
         }
-        if self.thinking is not None:
-            res["thinking"] = self.thinking
         if self.logprobs:
             res["logprobs"] = [lp.format() for lp in self.logprobs]
         return res
@@ -307,8 +481,7 @@ class GenerateResponse(Base):
         return cls(
             model=data.get("model", ""),
             created_at=data.get("created_at", ""),
-            response=data.get("response", ""),
-            thinking=data.get("thinking"),
+            message=Message.from_format(data.get("message", {})),
             done=data.get("done", False),
             done_reason=data.get("done_reason", ""),
             total_duration=data.get("total_duration", 0),
@@ -318,16 +491,5 @@ class GenerateResponse(Base):
             prompt_eval_duration=data.get("prompt_eval_duration", 0),
             eval_count=data.get("eval_count", 0),
             eval_duration=data.get("eval_duration", 0),
-            logprobs=[LogProb.from_format(lp) for lp in logprobs_data] if logprobs_data else []
+            logprobs=[LogProb.from_format(lp) for lp in logprobs_data] if logprobs_data else None
         )
-
-    @classmethod
-    def from_json(cls, json_str: str):
-        if not json_str:
-            return None
-        import json
-        try:
-            data = json.loads(json_str)
-            return cls.from_format(data)
-        except json.JSONDecodeError:
-            return None
