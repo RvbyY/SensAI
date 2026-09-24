@@ -320,3 +320,14 @@ class GenerateResponse(Base):
             eval_duration=data.get("eval_duration", 0),
             logprobs=[LogProb.from_format(lp) for lp in logprobs_data] if logprobs_data else []
         )
+
+    @classmethod
+    def from_json(cls, json_str: str):
+        if not json_str:
+            return None
+        import json
+        try:
+            data = json.loads(json_str)
+            return cls.from_format(data)
+        except json.JSONDecodeError:
+            return None
