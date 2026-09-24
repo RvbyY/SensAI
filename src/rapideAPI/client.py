@@ -63,4 +63,6 @@ class RapideAPI:
         return self.request("PATCH", endpoint, data=data, json=json, **kwargs)
 
     def health(self):
-        return self.request("")
+        health = self.request("GET", "api/version")
+        print(health)
+        return health is not None
