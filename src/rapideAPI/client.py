@@ -61,3 +61,6 @@ class RapideAPI:
 
     def patch(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, **kwargs) -> Any:
         return self.request("PATCH", endpoint, data=data, json=json, **kwargs)
+
+    def health(self):
+        return self.request("")
