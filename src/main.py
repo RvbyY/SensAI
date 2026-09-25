@@ -1,12 +1,11 @@
 import json
 import os
 
-from galerelm.models.chat import Chat, ChatResponse, Options, Message, MessageList
+from galerelm.models.chat import Chat, Options, Message, MessageList
 from dotenv import load_dotenv
 from rapideAPI.client import RapideAPI
 import logging
 
-# Configure les logs pour tout afficher dans la console avec un beau format
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 load_dotenv()
@@ -21,7 +20,7 @@ api = RapideAPI(
 
 user_prompt = input("\nPosez votre question au modèle : ")
 
-#Pas toucher ces valeurs pour l'instant elles sont cohérentes
+# PAS TOUCHER SVP
 options = Options(
     seed=0,                
     temperature=0.7,       
@@ -33,70 +32,36 @@ options = Options(
     num_predict=512        
 )
 
-messages = MessageList([])
+messages = MessageList([
+    Message(role="user", content=user_prompt)
+])
 
 user_chat = Chat(
-    model=hf_model,
-    messages=messages,
-    tools=None,
+    model=hf_model, 
+    messages=messages, 
+    tools=None, 
     request_format="json",
     options=options, 
-    stream=True,
+    stream=True, 
     think="medium",
-    keep_alive="5m",
-    logprobs=False,
+    keep_alive="5m", 
+    logprobs=False, 
     top_logprobs=0
 )
 
-user_chat.add_message(user_prompt, [], None)
-
-response = api.post("api/chat", json=user_chat.format(), stream=True)
-
-response.raise_for_status()
-
-
-
 print("\n--- RÉPONSE DU MODÈLE ---")
-full_response: list[str] = []
-final_chunk = None
 
-for line in response.iter_lines():
-    if not line:
-        continue
+for token in user_chat.execute_stream(api):
+    print(token, end="", flush=True)
 
-    # Décodage de la ligne JSON
-    chunk = json.loads(line.decode("utf-8"))
-    
-    # Extraction du morceau de réponse
-    token = chunk.get("message", {}).get("content", "")
-    if token:
-        # Affichage direct dans le terminal
-        print(token, end="", flush=True)
-        full_response.append(token)
+print()
+ollama_response = user_chat.last_response
 
-    # Signal de fin de génération (le dernier chunk contient toutes les stats)
-    if chunk.get("done", False):
-        print()  # Saut de ligne final
-        final_chunk = chunk
-
-# Reconstitution du texte complet
-full_text = "".join(full_response)
-
-if final_chunk:
-    # On met le texte complet dans le dictionnaire du dernier chunk pour reconstruire l'objet final
-    if "message" not in final_chunk:
-        final_chunk["message"] = {}
-    
-    final_chunk["message"]["role"] = "assistant"
-    final_chunk["message"]["content"] = full_text
-    
-    # On parse le tout directement dans un bel objet ChatResponse !
-    ollama_response = ChatResponse.from_format(final_chunk)
-    
+if ollama_response:
     print("\n--- OBJET CHATRESPONSE SAUVEGARDÉ ---")
     print(f"Modèle: {ollama_response.model}")
     print(f"Tokens évalués: {ollama_response.eval_count}")
     print(f"Temps de génération: {ollama_response.eval_duration / 1e9:.2f} s")
 else:
-    print("\nErreur: Flux interrompu avant la fin.")
+    print("\nErreur: Flux interrompu avant la fin, réponse incomplète.")
 
