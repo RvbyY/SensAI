@@ -225,8 +225,8 @@ class Options(Base):
     num_ctx: int = Column(Integer)
     num_predict: int = Column(Integer)
 
-    def __init__(self, seed: int, temperature: float, top_k: int, top_p: float, min_p: float,
-                 stop: Union[str, list[str]], num_ctx: int, num_predict: int):
+    def __init__(self, seed: int = 0, temperature: float = 0.7, top_k: int = 40, top_p: float = 0.9, min_p: float = 0.05,
+                 stop: Union[str, list[str]] = ["\nuser:", "</s>"], num_ctx: int = 4096, num_predict: int = 512):
         self.seed = seed
         self.temperature = temperature
         self.top_k = top_k
@@ -281,9 +281,8 @@ class Chat(Base):
     tools = relationship("Tools", collection_class=ToolsList, backref="chat", cascade="all, delete-orphan")
     options = relationship("Options", uselist=False, backref="chat", cascade="all, delete-orphan")
 
-    def __init__(self, model: str, messages: MessageList | None, tools: ToolsList | None, request_format: Format, options: Options,
-                 stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool,
-                 top_logprobs: int):
+    def __init__(self, model: str, messages: MessageList | None = None, tools: ToolsList | None = None, think: Union[bool, Think] = "medium", keep_alive: Union[str, int] = "2m", logprobs: bool = False,
+                 top_logprobs: int = 0, options: Options = Options(), request_format: Format = "json", stream: bool = True):
         self.model = model
         self.messages = messages if messages is not None else MessageList([])
         self.tools = tools if tools is not None else ToolsList([])
