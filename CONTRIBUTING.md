@@ -21,9 +21,9 @@ Communication between team members takes place on a private Discord chat
 
 ```zsh
 main
- └── feat/ai/temperature-management
- └── feat/ci/run-test-while-pushing
- └── feat/setup/run-in-localmode
+ └── 1-feat/ai/temperature-management
+ └── 2-feat/ci/run-test-while-pushing
+ └── 3-feat/setup/run-in-localmode
 ```
 
 Good for: fast iteration, simple mental model.
