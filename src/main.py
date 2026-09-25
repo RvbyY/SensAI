@@ -1,11 +1,11 @@
+import json
 import os
 
-from galerelm.models.chat import GenerateRequest, GenerateResponse, Options
+from galerelm.models.chat import Chat, Options, Message, MessageList
 from dotenv import load_dotenv
 from rapideAPI.client import RapideAPI
 import logging
 
-# Configure les logs pour tout afficher dans la console avec un beau format
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 load_dotenv()
@@ -20,20 +20,48 @@ api = RapideAPI(
 
 user_prompt = input("\nPosez votre question au modèle : ")
 
-# IMPORTANT: On met stream=False pour qu'Ollama renvoie un seul JSON complet, 
-# sinon il renvoie un flux de texte (plusieurs JSON bout à bout) et le parseur échoue
-generation = GenerateRequest(model=hf_model, prompt=user_prompt, stream=False)
+# PAS TOUCHER SVP
+options = Options(
+    seed=0,                
+    temperature=0.7,       
+    top_k=40,              
+    top_p=0.9,             
+    min_p=0.05,            
+    stop=["\nuser:", "</s>"], 
+    num_ctx=4096,          
+    num_predict=512        
+)
 
-response = api.post("api/generate", json=generation.format())
+messages = MessageList([
+    Message(role="user", content=user_prompt)
+])
 
-# Sécurité: si RapideAPI a renvoyé une string (ex: JSON mal formé), on utilise from_json
-if isinstance(response, str):
-    ollama_response = GenerateResponse.from_json(response)
-else:
-    ollama_response = GenerateResponse.from_format(response)
+user_chat = Chat(
+    model=hf_model, 
+    messages=messages, 
+    tools=None, 
+    request_format="json",
+    options=options, 
+    stream=True, 
+    think="medium",
+    keep_alive="5m", 
+    logprobs=False, 
+    top_logprobs=0
+)
 
 print("\n--- RÉPONSE DU MODÈLE ---")
+
+for token in user_chat.execute_stream(api):
+    print(token, end="", flush=True)
+
+print()
+ollama_response = user_chat.last_response
+
 if ollama_response:
-    print(ollama_response.response)
+    print("\n--- OBJET CHATRESPONSE SAUVEGARDÉ ---")
+    print(f"Modèle: {ollama_response.model}")
+    print(f"Tokens évalués: {ollama_response.eval_count}")
+    print(f"Temps de génération: {ollama_response.eval_duration / 1e9:.2f} s")
 else:
-    print("Erreur: Impossible de lire la réponse.")
+    print("\nErreur: Flux interrompu avant la fin, réponse incomplète.")
+

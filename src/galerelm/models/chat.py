@@ -4,6 +4,8 @@ from collections import UserList
 from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Float, JSON
 from sqlalchemy.orm import relationship, declarative_base
 
+from src.galerelm.models.constants import SYSTEM_PROMPT
+
 Base = declarative_base()
 
 Role = Literal["system", "user", "assistant", "tool"]
@@ -101,8 +103,6 @@ class Message(Base):
             res["images"] = self.images
         if self.tool_calls:
             res["tool_calls"] = [tc.format() for tc in self.tool_calls]
-        if self.thinking is not None:
-            res["thinking"] = self.thinking
         return res
 
     @classmethod
@@ -271,7 +271,7 @@ class Chat(Base):
     model: str = Column(String, nullable=False)
     request_format: str = Column(String, nullable=True)
     stream: bool = Column(Boolean, default=True)
-    think: str = Column(String, nullable=True)
+    think: Think | bool = Column(String, nullable=True)
     keep_alive: str = Column(String, nullable=True)
     logprobs: bool = Column(Boolean, default=False)
     top_logprobs: int = Column(Integer, nullable=True)
@@ -281,7 +281,7 @@ class Chat(Base):
     tools = relationship("Tools", collection_class=ToolsList, backref="chat", cascade="all, delete-orphan")
     options = relationship("Options", uselist=False, backref="chat", cascade="all, delete-orphan")
 
-    def __init__(self, model: str, messages: MessageList, tools: ToolsList, request_format: Format, options: Options,
+    def __init__(self, model: str, messages: MessageList | None, tools: ToolsList | None, request_format: Format, options: Options,
                  stream: bool, think: Union[bool, Think], keep_alive: Union[str, int], logprobs: bool,
                  top_logprobs: int):
         self.model = model
@@ -294,7 +294,35 @@ class Chat(Base):
         self.keep_alive = keep_alive
         self.logprobs = logprobs
         self.top_logprobs = top_logprobs
+        self.last_response = None
+        self.last_response = None
+        self.set_system_prompt()
 
+
+
+    def execute_stream(self, api_client):
+        """
+        Envoie la requête de chat à l'API en streaming, yield chaque token pour un affichage en temps réel,
+        et enregistre le résultat final complet dans self.last_response.
+        """
+        full_response = []
+        final_chunk = None
+
+        for chunk in api_client.stream_ndjson("api/chat", json_data=self.format()):
+            token = chunk.get("message", {}).get("content", "")
+            if token:
+                full_response.append(token)
+                yield token
+            
+            if chunk.get("done", False):
+                final_chunk = chunk
+
+        if final_chunk:
+            if "message" not in final_chunk:
+                final_chunk["message"] = {}
+            final_chunk["message"]["role"] = "assistant"
+            final_chunk["message"]["content"] = "".join(full_response)
+            self.last_response = ChatResponse.from_format(final_chunk)
     def format(self) -> dict:
         res = {
             "model": self.model,
@@ -307,13 +335,13 @@ class Chat(Base):
             res["format"] = self.request_format
         if self.options:
             res["options"] = self.options.format()
-        if self.think is not None:
+        if getattr(self, "think", None) is not None:
             res["think"] = self.think
-        if self.keep_alive is not None:
+        if getattr(self, "keep_alive", None) is not None:
             res["keep_alive"] = self.keep_alive
-        if self.logprobs is not None:
+        if getattr(self, "logprobs", None):  # Only send if True
             res["logprobs"] = self.logprobs
-        if self.top_logprobs is not None:
+        if getattr(self, "top_logprobs", None) is not None:
             res["top_logprobs"] = self.top_logprobs
         return res
 
@@ -334,6 +362,21 @@ class Chat(Base):
             top_logprobs=data.get("top_logprobs")
         )
 
+    # Pourquoi j'utilise add message meme dans user et system prompt ?
+    # Car dans l'ajout des prompts il faudra surement ajouter dans la db ou d'autres manipulations
+    def add_message(self, content: str, image: list[str], tool_calls: list[ToolCalls] | None, thinking: str = None, role: str = "user"):
+        message = Message(role, content, image, tool_calls, thinking)
+        self.messages.append(message)
+
+    def set_system_prompt(self):
+        message = Message(role="system", content=SYSTEM_PROMPT, images=[], tool_calls=[], thinking=None)
+        self.messages.insert(0, message)
+
+    def add_user_prompt(self, content: str, image: list[str], tool_calls: list[ToolCalls], thinking: str):
+        self.add_message(content, image, tool_calls, thinking)
+
+    def add_assistant_response(self, content: str, image: list[str], tool_calls: list[ToolCalls]):
+        self.add_message(content, image, tool_calls, role="assistant")
 
 class TopLogProb(Base):
     __tablename__ = "top_logprobs"
@@ -382,7 +425,8 @@ class LogProb(Base):
         self.token = token
         self.logprob = logprob
         self.bytes = bytes_repr
-        self.top_logprobs = top_logprobs if top_logprobs is not None else []
+        self.top_logprobs = top_logprobs
+        self.last_response = None if top_logprobs is not None else []
 
     def format(self) -> dict:
         return {

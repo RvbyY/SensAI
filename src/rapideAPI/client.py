@@ -38,16 +38,24 @@ class RapideAPI:
             duration = time.time() - start_time
             logger.info(f"<== [{method}] {url} - Status: {response.status_code} - Temps: {duration:.2f}s")
             response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            duration = time.time() - start_time
+            error_body = response.text
+            logger.error(f"[!] Erreur HTTP {response.status_code} après {duration:.2f}s : {error_body}")
+            raise e
         except requests.exceptions.Timeout as e:
             duration = time.time() - start_time
             logger.error(f"[!] TIMEOUT après {duration:.2f}s sur la requête [{method}] {url}")
             raise e
         except requests.exceptions.RequestException as e:
             duration = time.time() - start_time
-            logger.error(f"[!] Erreur API après {duration:.2f}s lors de la requête [{method}] {url}: {e}")
+            logger.error(f"[!] Erreur de connexion après {duration:.2f}s : {e}")
             raise e
 
-        # Retourne automatiquement du JSON si le serveur renvoie ce type
+        # Si l'utilisateur demande un stream, on renvoie l'objet réponse brut
+        if kwargs.get("stream"):
+            return response
+
         content_type = response.headers.get("Content-Type", "")
         if "application/json" in content_type:
             try:
@@ -59,6 +67,15 @@ class RapideAPI:
 
     def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         return self.request("GET", endpoint, params=params, **kwargs)
+
+    def stream_ndjson(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json_data: Optional[Dict] = None, **kwargs):
+        """Envoie une requête POST et lit la réponse en tant que flux NDJSON (Newline Delimited JSON)."""
+        import json
+        response = self.request("POST", endpoint, data=data, json=json_data, stream=True, **kwargs)
+        
+        for line in response.iter_lines():
+            if line:
+                yield json.loads(line.decode("utf-8"))
 
     def post(self, endpoint: str, data: Optional[Union[Dict, str]] = None, json: Optional[Dict] = None, **kwargs) -> Any:
         return self.request("POST", endpoint, data=data, json=json, **kwargs)
