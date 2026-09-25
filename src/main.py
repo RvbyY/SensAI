@@ -21,7 +21,7 @@ api = RapideAPI(
 
 user_prompt = input("\nPosez votre question au modèle : ")
 
-# Valeurs par défaut cohérentes pour l'inférence d'un LLM
+#Pas toucher ces valeurs pour l'instant elles sont cohérentes
 options = Options(
     seed=0,                
     temperature=0.7,       
@@ -33,29 +33,25 @@ options = Options(
     num_predict=512        
 )
 
-# On prépare le message utilisateur
 messages = MessageList([])
 
-# On configure le Chat (en activant le stream)
 user_chat = Chat(
-    model=hf_model, 
-    messages=messages, 
-    tools=None, 
+    model=hf_model,
+    messages=messages,
+    tools=None,
     request_format="json",
     options=options, 
-    stream=True, 
+    stream=True,
     think="medium",
-    keep_alive="5m", 
-    logprobs=False, 
+    keep_alive="5m",
+    logprobs=False,
     top_logprobs=0
 )
 
 user_chat.add_message(user_prompt, [], None)
 
-# Lancement de la requête avec stream=True (récupère l'objet response brut de requests)
 response = api.post("api/chat", json=user_chat.format(), stream=True)
 
-# On s'assure qu'il n'y a pas eu d'erreur HTTP
 response.raise_for_status()
 
 
@@ -64,7 +60,6 @@ print("\n--- RÉPONSE DU MODÈLE ---")
 full_response: list[str] = []
 final_chunk = None
 
-# Parcourt chaque ligne NDJSON au fil de l'eau
 for line in response.iter_lines():
     if not line:
         continue

@@ -51,7 +51,6 @@ class RapideAPI:
         if kwargs.get("stream"):
             return response
 
-        # Retourne automatiquement du JSON si le serveur renvoie ce type
         content_type = response.headers.get("Content-Type", "")
         if "application/json" in content_type:
             try:

@@ -4,6 +4,8 @@ from collections import UserList
 from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Float, JSON
 from sqlalchemy.orm import relationship, declarative_base
 
+from src.galerelm.models.constants import SYSTEM_PROMPT
+
 Base = declarative_base()
 
 Role = Literal["system", "user", "assistant", "tool"]
@@ -294,6 +296,8 @@ class Chat(Base):
         self.keep_alive = keep_alive
         self.logprobs = logprobs
         self.top_logprobs = top_logprobs
+        self.set_system_prompt()
+
 
     def format(self) -> dict:
         res = {
@@ -334,10 +338,20 @@ class Chat(Base):
             top_logprobs=data.get("top_logprobs")
         )
 
+    # Pourquoi j'utilise add message meme dans user et system prompt ?
+    # Car dans l'ajout des prompts il faudra surement ajouter dans la db ou d'autres manipulations
     def add_message(self, content: str, image: list[str], tool_calls: list[ToolCalls] | None, thinking: str = "medium", role: str = "user"):
         message = Message(role, content, image, tool_calls, thinking)
         self.messages.append(message)
 
+    def set_system_prompt(self):
+        self.add_message(SYSTEM_PROMPT, [], [], role="system")
+
+    def add_user_prompt(self, content: str, image: list[str], tool_calls: list[ToolCalls], thinking: str):
+        self.add_message(content, image, tool_calls, thinking)
+
+    def add_assistant_response(self, content: str, image: list[str], tool_calls: list[ToolCalls]):
+        self.add_message(content, image, tool_calls, role="assistant")
 
 class TopLogProb(Base):
     __tablename__ = "top_logprobs"
