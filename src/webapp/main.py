@@ -4,8 +4,13 @@ from src.model.basic_chat_bot import generate_prompt
 gr.Markdown("# Ici c'est la galère")
 
 chatbot = gr.Interface(
+
     generate_prompt,
-    inputs=["textbox"],
+
+    title="SensAI",
+    description="build the most capable AI assistant we can, starting from a minimal local chatbot and enriching it with features we choosen.",
+
+    inputs=["textbox"], 
     outputs=["textbox"],
     additional_inputs=[
         gr.State(None),  # profile: Profile = None
