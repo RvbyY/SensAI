@@ -4,6 +4,8 @@ from collections import UserList
 from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, Float, JSON
 from sqlalchemy.orm import relationship, declarative_base
 
+from model.basic_chat_bot import messages
+from rapideAPI import RapideAPI
 from src.galerelm.models.constants import SYSTEM_PROMPT
 
 Base = declarative_base()
@@ -281,9 +283,10 @@ class Chat(Base):
     tools = relationship("Tools", collection_class=ToolsList, backref="chat", cascade="all, delete-orphan")
     options = relationship("Options", uselist=False, backref="chat", cascade="all, delete-orphan")
 
-    def __init__(self, model: str, messages: MessageList | None = None, tools: ToolsList | None = None, think: Union[bool, Think] = "medium", keep_alive: Union[str, int] = "2m", logprobs: bool = False,
+    def __init__(self, model: str, api: RapideAPI, messages: MessageList | None = None, tools: ToolsList | None = None, think: Union[bool, Think] = "medium", keep_alive: Union[str, int] = "2m", logprobs: bool = False,
                  top_logprobs: int = 0, options: Options = Options(), request_format: Format = "json", stream: bool = True):
         self.model = model
+        self.api = api
         self.messages = messages if messages is not None else MessageList([])
         self.tools = tools if tools is not None else ToolsList([])
         self.request_format = request_format
@@ -376,6 +379,12 @@ class Chat(Base):
 
     def add_assistant_response(self, content: str, image: list[str], tool_calls: list[ToolCalls]):
         self.add_message(content, image, tool_calls, role="assistant")
+
+    def ask(self, content: str, image: list[str] = [], tool_calls: list[ToolCalls] = [], think: str = "medium"):
+        self.add_user_prompt(content, image, tool_calls, think)
+        for token in self.execute_stream(self.api):
+            print(token, end="", flush=True)
+        print()
 
 class TopLogProb(Base):
     __tablename__ = "top_logprobs"

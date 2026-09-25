@@ -20,19 +20,12 @@ api = RapideAPI(
 
 user_prompt = input("\nPosez votre question au modèle : ")
 
+llm = Chat(model=hf_model, api=api)
 
-messages = MessageList([
-    Message(role="user", content=user_prompt)
-])
-
-llm = Chat(model=hf_model)
+llm.ask(user_prompt)
 
 print("\n--- RÉPONSE DU MODÈLE ---")
 
-for token in llm.execute_stream(api):
-    print(token, end="", flush=True)
-
-print()
 ollama_response = llm.last_response
 
 if ollama_response:
