@@ -5,7 +5,7 @@ from src.galerelm.models.chat import Base
 
 class Profile(Base):
     __tablename__ = 'profiles'
-    
+
     id: str = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name: str = Column(String, nullable=False)
     email: str = Column(String, nullable=False, unique=True)
